@@ -1,12 +1,8 @@
 use bevy::{
     prelude::*,
+    render::render_resource::PrimitiveTopology,
     window::{WindowMode, WindowResolution},
 };
-
-const TIME_STEP: f32 = 1.0 / 60.0;
-
-const CAMERA_SPEED: f32 = 2.0;
-const CAMERA_ROTATION_SPEED: f32 = std::f32::consts::FRAC_PI_2;
 
 pub struct GamePlugin {}
 
@@ -22,10 +18,18 @@ impl Plugin for GamePlugin {
             ..default()
         }))
         .add_startup_system(setup)
-        .add_system(camera_move.in_schedule(CoreSchedule::FixedUpdate))
+        .add_system(camera_controls.in_schedule(CoreSchedule::FixedUpdate))
         .insert_resource(FixedTime::new_from_secs(TIME_STEP));
     }
 }
+
+const TIME_STEP: f32 = 1.0 / 60.0;
+
+const CAMERA_SPEED: f32 = 2.0;
+const CAMERA_ROTATION_SPEED: f32 = std::f32::consts::FRAC_PI_2;
+
+#[derive(Component)]
+struct MainCamera;
 
 fn setup(
     mut commands: Commands,
@@ -37,30 +41,68 @@ fn setup(
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..default()
     });
+
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    {
+        let mut vertices = vec![];
+        let single_face = [
+            // Front Top
+            [0.5, 0.5, 0.5],
+            [-0.5, 0.5, 0.5],
+            [0.0, 0.0, 1.0],
+            // Front Bottom
+            [0.5, -0.5, 0.5],
+            [0.0, 0.0, 1.0],
+            [-0.5, -0.5, 0.5],
+            // Front Left
+            [-0.5, 0.5, 0.5],
+            [-0.5, -0.5, 0.5],
+            [0.0, 0.0, 1.0],
+            // Front Right
+            [0.5, 0.5, 0.5],
+            [0.0, 0.0, 1.0],
+            [0.5, -0.5, 0.5],
+        ];
+        for rotation in [
+            Quat::from_rotation_y(0.0f32.to_radians()),
+            Quat::from_rotation_y(90.0f32.to_radians()),
+            Quat::from_rotation_y(-90.0f32.to_radians()),
+            Quat::from_rotation_y(-180.0f32.to_radians()),
+            Quat::from_rotation_x(90.0f32.to_radians()),
+            Quat::from_rotation_x(-90.0f32.to_radians()),
+        ] {
+            vertices.extend(
+                single_face
+                    .into_iter()
+                    .map(|[x, y, z]| Transform::from_rotation(rotation) * Vec3 { x, y, z }),
+            );
+        }
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
+        mesh.compute_flat_normals();
+    }
+
     commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+        mesh: meshes.add(mesh),
         material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
+        transform: Transform::from_xyz(0.0, 1.0, 0.0),
         ..default()
     });
 
     commands.spawn(PointLightBundle {
-        point_light: PointLight {
-            intensity: 1500.0,
-            shadows_enabled: true,
-            ..default()
-        },
         transform: Transform::from_xyz(4.0, 8.0, 4.0),
         ..default()
     });
 
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        },
+        MainCamera,
+    ));
 }
 
-fn camera_move(mut query: Query<&mut Transform, With<Camera3d>>, input: Res<Input<KeyCode>>) {
+fn camera_controls(mut query: Query<&mut Transform, With<MainCamera>>, input: Res<Input<KeyCode>>) {
     for mut transform in &mut query {
         let transform = transform.as_mut();
 
