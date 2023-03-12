@@ -48,6 +48,10 @@ fn setup(
     });
 
     commands.spawn(PointLightBundle {
+        point_light: PointLight {
+            shadows_enabled: true,
+            ..default()
+        },
         transform: Transform::from_xyz(4.0, 8.0, 4.0),
         ..default()
     });
@@ -58,7 +62,7 @@ fn setup(
             ..default()
         },
         CameraProperties {
-            movement_speed: 2.0,
+            movement_speed: 3.0,
             rotation_speed: 90.0f32.to_radians(),
         },
     ));
@@ -74,25 +78,32 @@ fn camera_controls(
     for (mut transform, camera) in &mut query {
         let transform = transform.as_mut();
 
+        let movement_speed = camera.movement_speed
+            * if input.pressed(KeyCode::LShift) {
+                2.0
+            } else {
+                1.0
+            };
+
         if input.pressed(KeyCode::W) {
-            transform.translation += transform.forward() * (camera.movement_speed * ts);
+            transform.translation += transform.forward() * (movement_speed * ts);
         }
         if input.pressed(KeyCode::S) {
-            transform.translation -= transform.forward() * (camera.movement_speed * ts);
+            transform.translation -= transform.forward() * (movement_speed * ts);
         }
 
         if input.pressed(KeyCode::A) {
-            transform.translation -= transform.right() * (camera.movement_speed * ts);
+            transform.translation -= transform.right() * (movement_speed * ts);
         }
         if input.pressed(KeyCode::D) {
-            transform.translation += transform.right() * (camera.movement_speed * ts);
+            transform.translation += transform.right() * (movement_speed * ts);
         }
 
         if input.pressed(KeyCode::Space) {
-            transform.translation += transform.up() * (camera.movement_speed * ts);
+            transform.translation += transform.up() * (movement_speed * ts);
         }
         if input.pressed(KeyCode::LControl) {
-            transform.translation -= transform.up() * (camera.movement_speed * ts);
+            transform.translation -= transform.up() * (movement_speed * ts);
         }
 
         if input.pressed(KeyCode::Up) {
