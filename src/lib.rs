@@ -24,7 +24,11 @@ impl Plugin for GamePlugin {
         .add_plugin(EguiPlugin)
         //.add_plugin(WorldInspectorPlugin::default())
         .add_startup_system(setup)
-        .add_system(draw_ui.after(EguiSet::BeginFrame))
+        .add_system(
+            draw_ui
+                .in_base_set(CoreSet::Update)
+                .after(EguiSet::BeginFrame),
+        )
         .add_system(camera_controls.in_schedule(CoreSchedule::FixedUpdate))
         .insert_resource(FixedTime::new(std::time::Duration::from_millis(10)))
         .insert_resource(AmbientLight {
