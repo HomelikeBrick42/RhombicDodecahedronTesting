@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
 mod utils;
 
@@ -17,9 +18,17 @@ impl Plugin for GamePlugin {
             }),
             ..default()
         }))
+        .add_plugin(EguiPlugin)
+        .add_plugin(WorldInspectorPlugin::default())
         .add_startup_system(setup)
+        //.add_system(draw_ui.after(EguiSet::BeginFrame))
         .add_system(camera_controls.in_schedule(CoreSchedule::FixedUpdate))
-        .insert_resource(FixedTime::new(std::time::Duration::from_millis(10)));
+        .insert_resource(FixedTime::new(std::time::Duration::from_millis(10)))
+        .insert_resource(AmbientLight {
+            brightness: 0.05,
+            ..default()
+        })
+        .insert_resource(bevy::pbr::DirectionalLightShadowMap { size: 4096 });
     }
 }
 
@@ -45,19 +54,28 @@ fn setup(
         ..default()
     });
 
+    let mesh = meshes.add(rhombic_dodecahedron());
     commands.spawn(PbrBundle {
-        mesh: meshes.add(rhombic_dodecahedron()),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+        mesh,
+        material: materials.add(Color::rgb(0.7, 0.7, 0.7).into()),
         transform: Transform::from_xyz(0.0, 1.0, 0.0),
         ..default()
     });
 
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
             shadows_enabled: true,
+            illuminance: 30000.0,
             ..default()
         },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
+        transform: Transform::default().looking_at(
+            Vec3 {
+                x: 0.3,
+                y: -1.0,
+                z: -0.4,
+            },
+            Vec3::Y,
+        ),
         ..default()
     });
 
@@ -84,63 +102,68 @@ fn camera_controls(
     let ts = time_step.period.as_secs_f32();
 
     for (mut transform, mut camera) in &mut query {
-        let transform = transform.as_mut();
-        let camera = camera.as_mut();
+        // Movement
+        {
+            let movement_speed = camera.movement_speed
+                * if input.pressed(KeyCode::LShift) {
+                    2.0
+                } else {
+                    1.0
+                };
 
-        let movement_speed = camera.movement_speed
-            * if input.pressed(KeyCode::LShift) {
-                2.0
-            } else {
-                1.0
-            };
+            let mut movement = Vec3::ZERO;
+            if input.pressed(KeyCode::W) {
+                movement += transform.forward();
+            }
+            if input.pressed(KeyCode::S) {
+                movement -= transform.forward();
+            }
 
-        if input.pressed(KeyCode::W) {
-            transform.translation += transform.forward() * (movement_speed * ts);
-        }
-        if input.pressed(KeyCode::S) {
-            transform.translation -= transform.forward() * (movement_speed * ts);
-        }
+            if input.pressed(KeyCode::A) {
+                movement -= transform.right();
+            }
+            if input.pressed(KeyCode::D) {
+                movement += transform.right();
+            }
 
-        if input.pressed(KeyCode::A) {
-            transform.translation -= transform.right() * (movement_speed * ts);
-        }
-        if input.pressed(KeyCode::D) {
-            transform.translation += transform.right() * (movement_speed * ts);
-        }
-
-        if input.pressed(KeyCode::E) {
-            transform.translation += transform.up() * (movement_speed * ts);
-        }
-        if input.pressed(KeyCode::Q) {
-            transform.translation -= transform.up() * (movement_speed * ts);
-        }
-
-        let mut rotation_changed = false;
-        if input.pressed(KeyCode::Up) {
-            camera.pitch += camera.rotation_speed * ts;
-            rotation_changed = true;
-        }
-        if input.pressed(KeyCode::Down) {
-            camera.pitch -= camera.rotation_speed * ts;
-            rotation_changed = true;
+            if input.pressed(KeyCode::E) {
+                movement += transform.up();
+            }
+            if input.pressed(KeyCode::Q) {
+                movement -= transform.up();
+            }
+            transform.translation += movement.normalize_or_zero() * (movement_speed * ts);
         }
 
-        if input.pressed(KeyCode::Left) {
-            camera.yaw += camera.rotation_speed * ts;
-            rotation_changed = true;
-        }
-        if input.pressed(KeyCode::Right) {
-            camera.yaw -= camera.rotation_speed * ts;
-            rotation_changed = true;
-        }
+        // Rotation
+        {
+            let mut rotation_changed = false;
+            if input.pressed(KeyCode::Up) {
+                camera.pitch += camera.rotation_speed * ts;
+                rotation_changed = true;
+            }
+            if input.pressed(KeyCode::Down) {
+                camera.pitch -= camera.rotation_speed * ts;
+                rotation_changed = true;
+            }
 
-        if rotation_changed {
-            camera.pitch = camera
-                .pitch
-                .clamp(-90.0f32.to_radians(), 90.0f32.to_radians());
-            camera.yaw %= std::f32::consts::TAU;
-            transform.rotation =
-                Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
+            if input.pressed(KeyCode::Left) {
+                camera.yaw += camera.rotation_speed * ts;
+                rotation_changed = true;
+            }
+            if input.pressed(KeyCode::Right) {
+                camera.yaw -= camera.rotation_speed * ts;
+                rotation_changed = true;
+            }
+
+            if rotation_changed {
+                camera.pitch = camera
+                    .pitch
+                    .clamp(-90.0f32.to_radians(), 90.0f32.to_radians());
+                camera.yaw %= std::f32::consts::TAU;
+                transform.rotation =
+                    Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
+            }
         }
     }
 }
