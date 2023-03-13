@@ -24,9 +24,14 @@ impl Plugin for GamePlugin {
 }
 
 #[derive(Component)]
+struct MainCamera;
+
+#[derive(Component)]
 struct CameraProperties {
     movement_speed: f32,
     rotation_speed: f32,
+    pitch: f32,
+    yaw: f32,
 }
 
 fn setup(
@@ -58,25 +63,29 @@ fn setup(
 
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(0.0, 2.5, 5.0),
             ..default()
         },
         CameraProperties {
             movement_speed: 3.0,
             rotation_speed: 90.0f32.to_radians(),
+            pitch: 0.0,
+            yaw: 0.0,
         },
+        MainCamera,
     ));
 }
 
 fn camera_controls(
-    mut query: Query<(&mut Transform, &CameraProperties)>,
+    mut query: Query<(&mut Transform, &mut CameraProperties), With<MainCamera>>,
     time_step: Res<FixedTime>,
     input: Res<Input<KeyCode>>,
 ) {
     let ts = time_step.period.as_secs_f32();
 
-    for (mut transform, camera) in &mut query {
+    for (mut transform, mut camera) in &mut query {
         let transform = transform.as_mut();
+        let camera = camera.as_mut();
 
         let movement_speed = camera.movement_speed
             * if input.pressed(KeyCode::LShift) {
@@ -99,32 +108,39 @@ fn camera_controls(
             transform.translation += transform.right() * (movement_speed * ts);
         }
 
-        if input.pressed(KeyCode::Space) {
+        if input.pressed(KeyCode::E) {
             transform.translation += transform.up() * (movement_speed * ts);
         }
-        if input.pressed(KeyCode::LControl) {
+        if input.pressed(KeyCode::Q) {
             transform.translation -= transform.up() * (movement_speed * ts);
         }
 
+        let mut rotation_changed = false;
         if input.pressed(KeyCode::Up) {
-            transform.rotate_local_x(camera.rotation_speed * ts);
+            camera.pitch += camera.rotation_speed * ts;
+            rotation_changed = true;
         }
         if input.pressed(KeyCode::Down) {
-            transform.rotate_local_x(-camera.rotation_speed * ts);
+            camera.pitch -= camera.rotation_speed * ts;
+            rotation_changed = true;
         }
 
         if input.pressed(KeyCode::Left) {
-            transform.rotate_local_y(camera.rotation_speed * ts);
+            camera.yaw += camera.rotation_speed * ts;
+            rotation_changed = true;
         }
         if input.pressed(KeyCode::Right) {
-            transform.rotate_local_y(-camera.rotation_speed * ts);
+            camera.yaw -= camera.rotation_speed * ts;
+            rotation_changed = true;
         }
 
-        if input.pressed(KeyCode::Q) {
-            transform.rotate_local_z(camera.rotation_speed * ts);
-        }
-        if input.pressed(KeyCode::E) {
-            transform.rotate_local_z(-camera.rotation_speed * ts);
+        if rotation_changed {
+            camera.pitch = camera
+                .pitch
+                .clamp(-90.0f32.to_radians(), 90.0f32.to_radians());
+            camera.yaw %= std::f32::consts::TAU;
+            transform.rotation =
+                Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
         }
     }
 }
