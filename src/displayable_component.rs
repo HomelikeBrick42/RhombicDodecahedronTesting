@@ -1,4 +1,4 @@
-use bevy::{prelude::*, ecs::system::EntityCommands};
+use bevy::{ecs::system::EntityCommands, prelude::*};
 use bevy_inspector_egui::egui;
 
 use crate::ShowInUIProperties;
@@ -13,6 +13,7 @@ pub trait DisplayableComponent {
         entity: Entity,
         ui_properties: &mut ShowInUIProperties,
         ui: &mut egui::Ui,
+        world: &mut World,
     );
 }
 
@@ -34,6 +35,7 @@ impl DisplayableComponent for Transform {
         _entity: Entity,
         ui_properties: &mut ShowInUIProperties,
         ui: &mut egui::Ui,
+        _world: &mut World,
     ) {
         render_transform_fields(self, ui_properties, ui, true);
     }
@@ -57,6 +59,7 @@ impl DisplayableComponent for GlobalTransform {
         _entity: Entity,
         ui_properties: &mut ShowInUIProperties,
         ui: &mut egui::Ui,
+        _world: &mut World,
     ) {
         render_transform_fields(&mut self.compute_transform(), ui_properties, ui, false);
     }
@@ -184,6 +187,7 @@ impl DisplayableComponent for Handle<Mesh> {
         _entity: Entity,
         _ui_properties: &mut ShowInUIProperties,
         _ui: &mut egui::Ui,
+        _world: &mut World,
     ) {
     }
 }
@@ -206,6 +210,7 @@ impl DisplayableComponent for Handle<StandardMaterial> {
         _entity: Entity,
         _ui_properties: &mut ShowInUIProperties,
         _ui: &mut egui::Ui,
+        _world: &mut World,
     ) {
     }
 }
@@ -228,6 +233,7 @@ impl DisplayableComponent for Visibility {
         entity: Entity,
         _ui_properties: &mut ShowInUIProperties,
         ui: &mut egui::Ui,
+        _world: &mut World,
     ) {
         egui::ComboBox::new(entity, "")
             .selected_text(match self {
@@ -261,6 +267,7 @@ impl DisplayableComponent for ComputedVisibility {
         _entity: Entity,
         _ui_properties: &mut ShowInUIProperties,
         ui: &mut egui::Ui,
+        _world: &mut World,
     ) {
         if self.is_visible() {
             ui.label("Visible");

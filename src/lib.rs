@@ -241,6 +241,7 @@ fn draw_ui(world: &mut World) {
                                         entity,
                                         ui_properties.as_mut(),
                                         ui,
+                                        &mut World::new(), // somehow pass the actual world in here
                                     );
                                     remove |= ui.button("Remove").clicked();
                                 });
