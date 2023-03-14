@@ -10,7 +10,7 @@ mod utils;
 use displayable_component::*;
 use utils::*;
 
-pub struct GamePlugin {}
+pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
@@ -98,11 +98,14 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(shape::Plane::from_size(5.0).into()),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
-        ..default()
-    });
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(shape::Plane::from_size(5.0).into()),
+            material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+            ..default()
+        },
+        ShowInUIProperties::new("Ground".to_string()),
+    ));
 
     let mesh = meshes.add(rhombic_dodecahedron());
     commands.spawn((
@@ -208,7 +211,14 @@ fn draw_ui(
                         });
 
                         for mut displayable_component in &mut displayable_components {
-                            displayable_component.display(ui_properties.as_mut(), ui);
+                            let name = displayable_component.get_name();
+                            ui.collapsing(name, |ui| {
+                                displayable_component.show_ui(entity, ui_properties.as_mut(), ui);
+                                if ui.button("Remove").clicked() {
+                                    let mut entity_commands = commands.entity(entity);
+                                    displayable_component.remove_component(&mut entity_commands);
+                                }
+                            });
                         }
 
                         duplicate |= ui.button("Duplicate").clicked();

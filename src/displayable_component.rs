@@ -5,31 +5,60 @@ use crate::ShowInUIProperties;
 
 #[bevy_trait_query::queryable]
 pub trait DisplayableComponent {
+    fn get_name(&self) -> &'static str;
     fn clone_onto(&self, commands: &mut EntityCommands);
-    fn display(&mut self, ui_properties: &mut ShowInUIProperties, ui: &mut egui::Ui);
+    fn remove_component(&mut self, commands: &mut EntityCommands);
+    fn show_ui(
+        &mut self,
+        entity: Entity,
+        ui_properties: &mut ShowInUIProperties,
+        ui: &mut egui::Ui,
+    );
 }
 
 impl DisplayableComponent for Transform {
+    fn get_name(&self) -> &'static str {
+        "Transform"
+    }
+
     fn clone_onto(&self, commands: &mut EntityCommands) {
         commands.insert(*self);
     }
 
-    fn display(&mut self, ui_properties: &mut ShowInUIProperties, ui: &mut egui::Ui) {
-        ui.collapsing("Transform", |ui| {
-            render_transform_fields(self, ui_properties, ui, true);
-        });
+    fn remove_component(&mut self, commands: &mut EntityCommands) {
+        commands.remove::<Self>();
+    }
+
+    fn show_ui(
+        &mut self,
+        _entity: Entity,
+        ui_properties: &mut ShowInUIProperties,
+        ui: &mut egui::Ui,
+    ) {
+        render_transform_fields(self, ui_properties, ui, true);
     }
 }
 
 impl DisplayableComponent for GlobalTransform {
+    fn get_name(&self) -> &'static str {
+        "Global Transform"
+    }
+
     fn clone_onto(&self, commands: &mut EntityCommands) {
         commands.insert(*self);
     }
 
-    fn display(&mut self, ui_properties: &mut ShowInUIProperties, ui: &mut egui::Ui) {
-        ui.collapsing("Global Transform", |ui| {
-            render_transform_fields(&mut self.compute_transform(), ui_properties, ui, false);
-        });
+    fn remove_component(&mut self, commands: &mut EntityCommands) {
+        commands.remove::<Self>();
+    }
+
+    fn show_ui(
+        &mut self,
+        _entity: Entity,
+        ui_properties: &mut ShowInUIProperties,
+        ui: &mut egui::Ui,
+    ) {
+        render_transform_fields(&mut self.compute_transform(), ui_properties, ui, false);
     }
 }
 
@@ -138,45 +167,105 @@ fn render_transform_fields(
 }
 
 impl DisplayableComponent for Handle<Mesh> {
+    fn get_name(&self) -> &'static str {
+        "Mesh"
+    }
+
     fn clone_onto(&self, commands: &mut EntityCommands) {
         commands.insert(self.clone());
     }
 
-    fn display(&mut self, ui_properties: &mut ShowInUIProperties, ui: &mut egui::Ui) {
-        _ = ui_properties;
-        ui.label("Mesh");
+    fn remove_component(&mut self, commands: &mut EntityCommands) {
+        commands.remove::<Self>();
+    }
+
+    fn show_ui(
+        &mut self,
+        _entity: Entity,
+        _ui_properties: &mut ShowInUIProperties,
+        _ui: &mut egui::Ui,
+    ) {
     }
 }
 
 impl DisplayableComponent for Handle<StandardMaterial> {
+    fn get_name(&self) -> &'static str {
+        "StandardMaterial"
+    }
+
     fn clone_onto(&self, commands: &mut EntityCommands) {
         commands.insert(self.clone());
     }
 
-    fn display(&mut self, ui_properties: &mut ShowInUIProperties, ui: &mut egui::Ui) {
-        _ = ui_properties;
-        ui.label("StandardMaterial");
+    fn remove_component(&mut self, commands: &mut EntityCommands) {
+        commands.remove::<Self>();
+    }
+
+    fn show_ui(
+        &mut self,
+        _entity: Entity,
+        _ui_properties: &mut ShowInUIProperties,
+        _ui: &mut egui::Ui,
+    ) {
     }
 }
 
 impl DisplayableComponent for Visibility {
+    fn get_name(&self) -> &'static str {
+        "Visibility"
+    }
+
     fn clone_onto(&self, commands: &mut EntityCommands) {
         commands.insert(*self);
     }
 
-    fn display(&mut self, ui_properties: &mut ShowInUIProperties, ui: &mut egui::Ui) {
-        _ = ui_properties;
-        ui.label("Visibility");
+    fn remove_component(&mut self, commands: &mut EntityCommands) {
+        commands.remove::<Self>();
+    }
+
+    fn show_ui(
+        &mut self,
+        entity: Entity,
+        _ui_properties: &mut ShowInUIProperties,
+        ui: &mut egui::Ui,
+    ) {
+        egui::ComboBox::new(entity, "")
+            .selected_text(match self {
+                Visibility::Inherited => "Inherited",
+                Visibility::Hidden => "Hidden",
+                Visibility::Visible => "Visible",
+            })
+            .show_ui(ui, |ui| {
+                ui.selectable_value(self, Visibility::Inherited, "Inherited");
+                ui.selectable_value(self, Visibility::Hidden, "Hidden");
+                ui.selectable_value(self, Visibility::Visible, "Visible");
+            });
     }
 }
 
 impl DisplayableComponent for ComputedVisibility {
+    fn get_name(&self) -> &'static str {
+        "ComputedVisibility"
+    }
+
     fn clone_onto(&self, commands: &mut EntityCommands) {
         commands.insert(self.clone());
     }
 
-    fn display(&mut self, ui_properties: &mut ShowInUIProperties, ui: &mut egui::Ui) {
-        _ = ui_properties;
-        ui.label("Computed Visibility");
+    fn remove_component(&mut self, commands: &mut EntityCommands) {
+        commands.remove::<Self>();
+    }
+
+    fn show_ui(
+        &mut self,
+        _entity: Entity,
+        _ui_properties: &mut ShowInUIProperties,
+        ui: &mut egui::Ui,
+    ) {
+        if self.is_visible() {
+            ui.label("Visible");
+        } else {
+            ui.label("Not Visible");
+        }
     }
 }
