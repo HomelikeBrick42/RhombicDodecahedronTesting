@@ -4,8 +4,10 @@ use bevy_inspector_egui::{
     egui,
 };
 
+mod displayable_component;
 mod utils;
 
+use displayable_component::*;
 use utils::*;
 
 pub struct GamePlugin {}
@@ -29,6 +31,7 @@ impl Plugin for GamePlugin {
                 .in_base_set(CoreSet::Update)
                 .after(EguiSet::BeginFrame),
         )
+        //.add_system(foo)
         .add_system(camera_controls.in_schedule(CoreSchedule::FixedUpdate))
         .insert_resource(FixedTime::new(std::time::Duration::from_millis(10)))
         .insert_resource(AmbientLight {
@@ -39,6 +42,14 @@ impl Plugin for GamePlugin {
             settings_window_open: false,
             entities_window_open: false,
         });
+
+        use bevy_trait_query::RegisterExt;
+        app.register_component_as::<dyn DisplayableComponent, Transform>()
+            .register_component_as::<dyn DisplayableComponent, GlobalTransform>()
+            .register_component_as::<dyn DisplayableComponent, Handle<Mesh>>()
+            .register_component_as::<dyn DisplayableComponent, Handle<StandardMaterial>>()
+            .register_component_as::<dyn DisplayableComponent, Visibility>()
+            .register_component_as::<dyn DisplayableComponent, ComputedVisibility>();
     }
 }
 
@@ -49,7 +60,7 @@ struct UISettings {
 }
 
 #[derive(Component)]
-struct ShowInUIProperties {
+pub struct ShowInUIProperties {
     name: String,
     euler_angles_cache: Option<Vec3>,
 }
@@ -66,7 +77,7 @@ impl ShowInUIProperties {
 impl Clone for ShowInUIProperties {
     fn clone(&self) -> Self {
         Self {
-            name: self.name.clone(),
+            name: self.name.clone() + " Copy",
             euler_angles_cache: None,
         }
     }
@@ -137,9 +148,21 @@ fn setup(
     ));
 }
 
+#[allow(dead_code)]
+fn foo(mut entities: Query<&mut Transform>) {
+    for mut entity in &mut entities {
+        _ = &mut *entity;
+    }
+}
+
 fn draw_ui(
+    mut commands: Commands,
     mut contexts: EguiContexts,
-    mut entities: Query<(Entity, &mut ShowInUIProperties, Option<&mut Transform>)>,
+    mut entities: Query<(
+        Entity,
+        &mut ShowInUIProperties,
+        &mut dyn DisplayableComponent,
+    )>,
     mut settings: ResMut<UISettings>,
     mut time_step: ResMut<FixedTime>,
 ) {
@@ -182,7 +205,7 @@ fn draw_ui(
         .open(&mut settings.entities_window_open)
         .vscroll(true)
         .show(ctx, |ui| {
-            for (entity, mut ui_properties, mut transform) in &mut entities {
+            for (entity, mut ui_properties, mut displayable_components) in &mut entities {
                 let mut duplicate = false;
                 egui::CollapsingHeader::new(&ui_properties.name)
                     .id_source(entity)
@@ -192,85 +215,17 @@ fn draw_ui(
                             ui.text_edit_singleline(&mut ui_properties.name);
                         });
 
-                        if let Some(transform) = transform.as_mut() {
-                            ui.horizontal(|ui| {
-                                ui.label("Position: ");
-                                ui.add(
-                                    egui::DragValue::new(&mut transform.translation.x)
-                                        .prefix("x: ")
-                                        .speed(0.01),
-                                );
-                                ui.add(
-                                    egui::DragValue::new(&mut transform.translation.y)
-                                        .prefix("y: ")
-                                        .speed(0.01),
-                                );
-                                ui.add(
-                                    egui::DragValue::new(&mut transform.translation.z)
-                                        .prefix("z: ")
-                                        .speed(0.01),
-                                );
-                            });
-                            ui.horizontal(|ui| {
-                                ui.label("Rotation: ");
-                                let euler_angles =
-                                    ui_properties.euler_angles_cache.get_or_insert_with(|| {
-                                        let (y, x, z) = transform.rotation.to_euler(EulerRot::YXZ);
-                                        Vec3 {
-                                            x: x.to_degrees(),
-                                            y: y.to_degrees(),
-                                            z: z.to_degrees(),
-                                        }
-                                    });
-
-                                let x_response =
-                                    ui.add(egui::DragValue::new(&mut euler_angles.x).prefix("x: "));
-                                let y_response =
-                                    ui.add(egui::DragValue::new(&mut euler_angles.y).prefix("y: "));
-                                let z_response =
-                                    ui.add(egui::DragValue::new(&mut euler_angles.z).prefix("z: "));
-                                if x_response.changed()
-                                    || y_response.changed()
-                                    || z_response.changed()
-                                {
-                                    transform.rotation = Quat::from_euler(
-                                        EulerRot::YXZ,
-                                        euler_angles.y.to_radians(),
-                                        euler_angles.x.to_radians(),
-                                        euler_angles.z.to_radians(),
-                                    );
-                                }
-                                if (!x_response.has_focus() && !x_response.dragged())
-                                    && (!y_response.has_focus() && !y_response.dragged())
-                                    && (!z_response.has_focus() && !z_response.dragged())
-                                {
-                                    ui_properties.euler_angles_cache = None;
-                                }
-                            });
-                            ui.horizontal(|ui| {
-                                ui.label("Scale: ");
-                                ui.add(
-                                    egui::DragValue::new(&mut transform.scale.x)
-                                        .prefix("x: ")
-                                        .speed(0.01),
-                                );
-                                ui.add(
-                                    egui::DragValue::new(&mut transform.scale.y)
-                                        .prefix("y: ")
-                                        .speed(0.01),
-                                );
-                                ui.add(
-                                    egui::DragValue::new(&mut transform.scale.z)
-                                        .prefix("z: ")
-                                        .speed(0.01),
-                                );
-                            });
+                        for mut displayable_component in &mut displayable_components {
+                            displayable_component.display(ui_properties.as_mut(), ui);
                         }
 
                         duplicate |= ui.button("Duplicate").clicked();
                     });
                 if duplicate {
-                    // do nothing
+                    let mut entity_commands = commands.spawn(ui_properties.clone());
+                    for displayable_component in &mut displayable_components {
+                        displayable_component.clone_onto(&mut entity_commands);
+                    }
                 }
             }
             ui.allocate_space(ui.available_size());
