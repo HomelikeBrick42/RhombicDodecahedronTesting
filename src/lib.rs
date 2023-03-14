@@ -31,7 +31,7 @@ impl Plugin for GamePlugin {
                 .in_base_set(CoreSet::Update)
                 .after(EguiSet::BeginFrame),
         )
-        //.add_system(foo)
+        .add_system(foo)
         .add_system(camera_controls.in_schedule(CoreSchedule::FixedUpdate))
         .insert_resource(FixedTime::new(std::time::Duration::from_millis(10)))
         .insert_resource(AmbientLight {
