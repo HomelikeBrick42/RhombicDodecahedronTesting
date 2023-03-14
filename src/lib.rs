@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemState, prelude::*};
 use bevy_inspector_egui::{
     bevy_egui::{EguiContexts, EguiPlugin, EguiSet},
     egui,
@@ -150,20 +150,14 @@ fn setup(
     ));
 }
 
-fn draw_ui(
-    mut commands: Commands,
-    mut contexts: EguiContexts,
-    mut entities: Query<(
-        Entity,
-        &mut ShowInUIProperties,
-        &mut dyn DisplayableComponent,
-    )>,
-    mut settings: ResMut<UISettings>,
-    mut time_step: ResMut<FixedTime>,
-) {
-    let ctx = contexts.ctx_mut();
+fn draw_ui(world: &mut World) {
+    let ctx = SystemState::<EguiContexts>::from_world(world)
+        .get_mut(world)
+        .ctx_mut()
+        .clone();
 
-    egui::TopBottomPanel::top("Top Panel").show(ctx, |ui| {
+    egui::TopBottomPanel::top("Top Panel").show(&ctx, |ui| {
+        let mut settings = world.get_resource_mut::<UISettings>().unwrap();
         ui.horizontal(|ui| {
             if ui.button("Settings").clicked() {
                 settings.settings_window_open = true;
@@ -174,10 +168,15 @@ fn draw_ui(
         });
     });
 
+    let mut settings_window_open = world
+        .get_resource_mut::<UISettings>()
+        .unwrap()
+        .settings_window_open;
     egui::Window::new("Settings")
-        .open(&mut settings.settings_window_open)
+        .open(&mut settings_window_open)
         .vscroll(true)
-        .show(ctx, |ui| {
+        .show(&ctx, |ui| {
+            let mut time_step = world.get_resource_mut::<FixedTime>().unwrap();
             ui.horizontal(|ui| {
                 ui.label("Time Step: ");
                 let mut step = time_step.period.as_secs_f64();
@@ -195,43 +194,88 @@ fn draw_ui(
             });
             ui.allocate_space(ui.available_size());
         });
+    world
+        .get_resource_mut::<UISettings>()
+        .unwrap()
+        .settings_window_open = settings_window_open;
 
+    let mut entities_window_open = world
+        .get_resource_mut::<UISettings>()
+        .unwrap()
+        .entities_window_open;
     egui::Window::new("Entities")
-        .open(&mut settings.entities_window_open)
+        .open(&mut entities_window_open)
         .vscroll(true)
-        .show(ctx, |ui| {
-            for (entity, mut ui_properties, mut displayable_components) in &mut entities {
-                let mut duplicate = false;
+        .show(&ctx, |ui| {
+            let entities = world
+                .query_filtered::<Entity, With<ShowInUIProperties>>()
+                .iter_mut(world)
+                .collect::<Vec<_>>();
+            for entity in entities {
+                let ui_properties = world.get::<ShowInUIProperties>(entity).unwrap();
                 egui::CollapsingHeader::new(&ui_properties.name)
                     .id_source(entity)
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.label("Name: ");
+                            let mut ui_properties =
+                                world.get_mut::<ShowInUIProperties>(entity).unwrap();
                             ui.text_edit_singleline(&mut ui_properties.name);
                         });
 
-                        for mut displayable_component in &mut displayable_components {
-                            let name = displayable_component.get_name();
-                            ui.collapsing(name, |ui| {
-                                displayable_component.show_ui(entity, ui_properties.as_mut(), ui);
-                                if ui.button("Remove").clicked() {
+                        {
+                            let mut system_state = SystemState::<(
+                                Commands,
+                                Query<(&mut ShowInUIProperties, &mut dyn DisplayableComponent)>,
+                            )>::from_world(world);
+                            let (mut commands, mut query) = system_state.get_mut(world);
+
+                            let (mut ui_properties, mut displayable_components) =
+                                query.get_mut(entity).unwrap();
+
+                            for mut displayable_component in &mut displayable_components {
+                                let name = displayable_component.get_name();
+                                let mut remove = false;
+                                ui.collapsing(name, |ui| {
+                                    displayable_component.show_ui(
+                                        entity,
+                                        ui_properties.as_mut(),
+                                        ui,
+                                    );
+                                    remove |= ui.button("Remove").clicked();
+                                });
+                                if remove {
                                     let mut entity_commands = commands.entity(entity);
                                     displayable_component.remove_component(&mut entity_commands);
                                 }
-                            });
+                            }
                         }
 
-                        duplicate |= ui.button("Duplicate").clicked();
+                        if ui.button("Duplicate").clicked() {
+                            let mut system_state = SystemState::<(
+                                Commands,
+                                Query<(&ShowInUIProperties, &mut dyn DisplayableComponent)>,
+                            )>::from_world(world);
+                            let (mut commands, mut query) = system_state.get_mut(world);
+
+                            let (ui_properties, mut displayable_components) =
+                                query.get_mut(entity).unwrap();
+
+                            let ui_properties = ui_properties.clone();
+
+                            let mut entity_commands = commands.spawn(ui_properties);
+                            for displayable_component in &mut displayable_components {
+                                displayable_component.clone_onto(&mut entity_commands);
+                            }
+                        }
                     });
-                if duplicate {
-                    let mut entity_commands = commands.spawn(ui_properties.clone());
-                    for displayable_component in &mut displayable_components {
-                        displayable_component.clone_onto(&mut entity_commands);
-                    }
-                }
             }
             ui.allocate_space(ui.available_size());
         });
+    world
+        .get_resource_mut::<UISettings>()
+        .unwrap()
+        .entities_window_open = entities_window_open;
 }
 
 fn camera_controls(

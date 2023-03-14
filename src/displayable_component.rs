@@ -1,4 +1,4 @@
-use bevy::{ecs::system::EntityCommands, prelude::*};
+use bevy::{prelude::*, ecs::system::EntityCommands};
 use bevy_inspector_egui::egui;
 
 use crate::ShowInUIProperties;
